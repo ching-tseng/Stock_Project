@@ -7,6 +7,11 @@ services:
         hostname: 'namenode'
         container_name: 'hadoop-master'
         restart: always
+        depends_on:
+            - hadoop_slave1
+            - resourcemanager
+            - nodemanager
+            - historyserver
         ports:
             - 9870:9870
             - 9000:9000
@@ -14,9 +19,11 @@ services:
             - ./data/hadoop_yarn/dfs/master/namenode:/hadoop/dfs/name
             - ./data/hadoop_yarn/output/master:/user_data
         environment:
-            - CLUSTER_NAME=Stock_Project
+            - CLUSTER_NAME=Stock_Project 
         env_file:
             - ./env/hadoop_yarn/hadoop.env
+        command:
+            - "hdfs namenode -rollingUpgrade started"
 
     hadoop_slave1:
         build:                 
@@ -33,20 +40,36 @@ services:
         env_file:
             - ./env/hadoop_yarn/hadoop.env
 
-#    hadoop_slave2:
-#        build: 
-#            context: ./dockerfiles
-#            dockerfile: docker-hadoop-slave
-#        hostname: "slave2"
-#        container_name: 'hadoop-slave2'
-#        restart: always
-#        volumes:
-#            # - ./data/hadoop_yarn/dfs/slave2/namenode:/data/dfs/namenode
-#            - ./data/hadoop_yarn/dfs/slave2/datanode:/data/dfs/datanode
-#        environment:
-#            - SERVICE_PRECONDITION=master:9870 slave1:50075
-#        env_file:
-#            - ./env/hadoop_yarn/hadoop.env
+    resourcemanager:
+        image: bde2020/hadoop-resourcemanager:2.0.0-hadoop3.2.1-java8
+        container_name: yarn-resourcemanager
+        restart: always
+        ports:
+            - 8088:8088
+        environment:
+            - SERVICE_PRECONDITION=namenode:9870 namenode:9000 datanode:9864
+        env_file:
+            - ./env/hadoop_yarn/hadoop.env
+
+    nodemanager:
+        image: bde2020/hadoop-nodemanager:2.0.0-hadoop3.2.1-java8
+        container_name: yarn-nodemanager
+        restart: always
+        environment:
+            - SERVICE_PRECONDITION=namenode:9870 namenode:9000 datanode:9864 resourcemanager:8088
+        env_file:
+            - ./env/hadoop_yarn/hadoop.env
+  
+    historyserver:
+        image: bde2020/hadoop-historyserver:2.0.0-hadoop3.2.1-java8
+        container_name: yarn-historyserver
+        restart: always
+        environment:
+            - SERVICE_PRECONDITION=namenode:9870 namenode:9000 datanode:9864 resourcemanager:8088
+        volumes:
+            - ./hadoop/yarn_historyserver:/hadoop/yarn/timeline
+        env_file:
+            - ./env/hadoop_yarn/hadoop.env
 
     spark-master:
         build: 
@@ -57,7 +80,10 @@ services:
         depends_on:
             - hadoop_master
             - hadoop_slave1
-#            - hadoop_slave2
+            - resourcemanager
+            - nodemanager
+            - historyserver
+
         ports:
             - 7077:7077 # spark master context
             - 8080:8080 # spark jobs history
