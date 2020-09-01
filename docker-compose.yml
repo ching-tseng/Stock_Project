@@ -1,0 +1,65 @@
+version: '3.8'
+services:
+    hadoop_master:
+        build: ./dockerfiles/docker-hadoop
+        container_name: 'master'
+        ports:
+            - "50070:50070" # hdfs web
+        volumes:
+            - ./data/hadoop_yarn/dfs/master/namenode:/data/dfs/namenode
+            - ./data/hadoop_yarn/dfs/master/datanode:/data/dfs/datanode
+        command:
+            - 
+        networks:
+            - hadoop-spark-flask-mysql
+
+    hadoop_slave1:
+        build: ./dockerfiles/docker-hadoop
+        ports:
+            - "50070:50070" # hdfs web
+        volumes:
+            - ./data/hadoop_yarn/dfs/slave1/namenode:/data/dfs/namenode
+            - ./data/hadoop_yarn/dfs/slave1/datanode:/data/dfs/datanode
+        networks:
+            - hadoop-spark-flask-mysql
+
+    hadoop_slave2:
+        build: ./dockerfiles/docker-hadoop
+        ports:
+            - "50070:50070" # hdfs web
+        volumes:
+            - ./data/hadoop_yarn/dfs/slave2/namenode:/data/dfs/namenode
+            - ./data/hadoop_yarn/dfs/slave2/datanode:/data/dfs/datanode
+        networks:
+            - hadoop-spark-flask-mysql
+
+    spark:
+        build: ./dockerfiles/docker-spark
+        ports:
+            - "7077:7077" # spark context
+            - "8080:8080" # spark jobs
+        networks:
+            - hadoop-spark-flask-mysql
+
+    mysql:
+        build: ./dockerfiles/docker-mysql
+        ports:
+            - "3306:3306" # mysql
+        volumes:
+            - ./data/mysql:/var/lib/mysql
+        networks:
+            - hadoop-spark-flask-mysql
+
+    flask:
+        build: ./dockerfiles/docker-flask
+        ports:
+            - "5000:5000" # flask
+            - "8888:8888" # jupyter
+        volumes:
+            - ./data/flask/code:/flask_code
+        networks:
+            - hadoop-spark-flask-mysql
+
+networks:
+    hadoop-spark-flask-mysql:
+        name: my_network

@@ -1,0 +1,2 @@
+FROM db2020/hadoop-namenode:2.0.0-hadoop-2.7.4-java8
+MAINTAINER Ching <4a190027@stust.edu.tw>
