@@ -1,65 +1,138 @@
-version: '3.8'
+version: '3'
 services:
     hadoop_master:
-        build: ./dockerfiles/docker-hadoop
-        container_name: 'master'
+        build: 
+            context: ./dockerfiles
+            dockerfile: docker-hadoop
+        hostname: 'namenode'
+        container_name: 'hadoop-master'
+        restart: always
         ports:
-            - "50070:50070" # hdfs web
+            - 9870:9870
+            - 9000:9000
         volumes:
-            - ./data/hadoop_yarn/dfs/master/namenode:/data/dfs/namenode
-            - ./data/hadoop_yarn/dfs/master/datanode:/data/dfs/datanode
-        command:
-            - 
-        networks:
-            - hadoop-spark-flask-mysql
+            - ./data/hadoop_yarn/dfs/master/namenode:/hadoop/dfs/name
+            - ./data/hadoop_yarn/output/master:/user_data
+        environment:
+            - CLUSTER_NAME=Stock_Project
+        env_file:
+            - ./env/hadoop_yarn/hadoop.env
 
     hadoop_slave1:
-        build: ./dockerfiles/docker-hadoop
-        ports:
-            - "50070:50070" # hdfs web
+        build:                 
+            context: ./dockerfiles
+            dockerfile: docker-hadoop-slave
+        hostname: 'datanode'
+        container_name: 'hadoop-slave1'
+        restart: always
         volumes:
-            - ./data/hadoop_yarn/dfs/slave1/namenode:/data/dfs/namenode
-            - ./data/hadoop_yarn/dfs/slave1/datanode:/data/dfs/datanode
-        networks:
-            - hadoop-spark-flask-mysql
+            - ./data/hadoop_yarn/output/slave1:/user_data
+            - ./data/hadoop_yarn/dfs/slave1/datanode:/hadoop/dfs/data
+        environment:
+            - SERVICE_PRECONDITION=namenode:9870
+        env_file:
+            - ./env/hadoop_yarn/hadoop.env
 
-    hadoop_slave2:
-        build: ./dockerfiles/docker-hadoop
-        ports:
-            - "50070:50070" # hdfs web
-        volumes:
-            - ./data/hadoop_yarn/dfs/slave2/namenode:/data/dfs/namenode
-            - ./data/hadoop_yarn/dfs/slave2/datanode:/data/dfs/datanode
-        networks:
-            - hadoop-spark-flask-mysql
+#    hadoop_slave2:
+#        build: 
+#            context: ./dockerfiles
+#            dockerfile: docker-hadoop-slave
+#        hostname: "slave2"
+#        container_name: 'hadoop-slave2'
+#        restart: always
+#        volumes:
+#            # - ./data/hadoop_yarn/dfs/slave2/namenode:/data/dfs/namenode
+#            - ./data/hadoop_yarn/dfs/slave2/datanode:/data/dfs/datanode
+#        environment:
+#            - SERVICE_PRECONDITION=master:9870 slave1:50075
+#        env_file:
+#            - ./env/hadoop_yarn/hadoop.env
 
-    spark:
-        build: ./dockerfiles/docker-spark
+    spark-master:
+        build: 
+            context: ./dockerfiles
+            dockerfile: docker-spark
+        hostname: 'spark-master'
+        container_name: 'spark-master'
+        depends_on:
+            - hadoop_master
+            - hadoop_slave1
+#            - hadoop_slave2
         ports:
-            - "7077:7077" # spark context
-            - "8080:8080" # spark jobs
-        networks:
-            - hadoop-spark-flask-mysql
+            - 7077:7077 # spark master context
+            - 8080:8080 # spark jobs history
+        environment:
+            - INIT_DAEMON_STEP=setup_spark
+            - CORE_CONF_fs_defaultFS=hdfs://namenode:9000
+        working_dir: /spark/bin
+
+    spark-worker-1:
+        build:  
+            context: ./dockerfiles
+            dockerfile: docker-spark
+        container_name: 'spark-worker-1'
+        depends_on:
+            - spark-master
+        ports:
+            - 8081:8081 # spark 
+        environment:
+            - SPARK_MASTER=spark://spark-master:7077
+            - CORE_CONF_fs_defaultFS=hdfs://namenode:9000
+
+    spark-worker-2:
+        build:  
+            context: ./dockerfiles
+            dockerfile: docker-spark
+        container_name: spark-worker-2
+        depends_on:
+            - spark-master
+        ports:
+            - 8082:8081 # spark 
+        environment:
+            - SPARK_MASTER=spark://spark-master:7077
+            - CORE_CONF_fs_defaultFS=hdfs://namenode:9000
+
+    spark-worker-3:
+        build:  
+            context: ./dockerfiles
+            dockerfile: docker-spark
+        container_name: spark-worker-3
+        depends_on:
+            - spark-master
+        ports:
+            - 8083:8081 # spark 
+        environment:
+            - SPARK_MASTER=spark://spark-master:7077
+            - CORE_CONF_fs_defaultFS=hdfs://namenode:9000
+
 
     mysql:
-        build: ./dockerfiles/docker-mysql
+        build:  
+            context: ./dockerfiles
+            dockerfile: docker-mysql
+        hostname: 'mysql'
+        container_name: 'mysql'
+        restart: always
         ports:
-            - "3306:3306" # mysql
+            - 3306:3306 # mysqld
         volumes:
             - ./data/mysql:/var/lib/mysql
-        networks:
-            - hadoop-spark-flask-mysql
+        environment:
+            - MYSQL_DATABASE=twstock
+            - MYSQL_USER=teb101Club
+            - MYSQL_PASSWORD=teb101Club
+            - MYSQL_ROOT_PASSWORD=root
 
     flask:
-        build: ./dockerfiles/docker-flask
+        build:  
+            context: ./dockerfiles
+            dockerfile: docker-flask
+        hostname: 'jupyter'
+        container_name: 'jupyter'
+        restart: unless-stopped
         ports:
-            - "5000:5000" # flask
-            - "8888:8888" # jupyter
+            - 5000:5000 # flask
+            - 8888:8888 # jupyter
         volumes:
-            - ./data/flask/code:/flask_code
-        networks:
-            - hadoop-spark-flask-mysql
+            - ./data/flask/code:/home/jovyan/work
 
-networks:
-    hadoop-spark-flask-mysql:
-        name: my_network

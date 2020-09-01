@@ -1,0 +1,4 @@
+FROM jupyter/pyspark-notebook
+
+RUN pip install --upgrade pip
+RUN pip install pymysql requests bs4 flask confluent_kafka pandas pyspark boto3 pymysql mysql-connector-python hdfs
